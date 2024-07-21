@@ -1,0 +1,8 @@
+unstructured[all-docs] 
+pydantic 
+lxml 
+opencv-python 
+llama-index-llms-together
+pymilvus
+llama-index-vector-stores-faiss
+streamlit
