@@ -1,4 +1,4 @@
-from llms_init import my_llm, jina_embedding_model, openai_client
+from llms_init import my_llm, openai_client
 
 
 def summarize_text(text_element):
@@ -52,11 +52,21 @@ def process_table_elements(table_elements):
         #print(f"{i + 1}th element of tables processed.")
     return table_summaries
 
+##############
+import base64
+def get_image_size(image_element):
+    image_data = base64.b64decode(image_element)
+    size_in_bytes = len(image_data)
+    size_in_mb = size_in_bytes / (1024 * 1024)
+    return size_in_mb
+
+
 def process_image_elements(image_elements):
     image_summaries = []
     for i, ie in enumerate(image_elements):
+        if get_image_size(ie) > 20:
+            continue
         summary = summarize_image(ie)
         image_summaries.append(summary)
-        #print(f"{i + 1}th element of images processed.")
     return image_summaries
 

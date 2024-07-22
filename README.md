@@ -2,7 +2,7 @@ Internal Flow :
 1. extract_data_from_pdf.py
 2. llms_init.py
 3. generate_summaries.py
-4. create_vectorstore_index.py
+4. create_vectorstore_index.py OR create_zilliz_cloud_vectorstore.py
 
 How to test :
 python main_local.py
