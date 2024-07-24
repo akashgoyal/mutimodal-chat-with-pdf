@@ -3,17 +3,17 @@ from IPython.display import display, Image
 
 import extract_data_from_pdf as ed
 import generate_summaries as gs
-import local_vectordb.create_vectorstore_index as cv
+import cloud_vectordb.create_zilliz_cloud_vectorestore as cv
 
 ## step 1
-output_path = './content/images'
-filename = "./content/test-pdf.pdf"
-filename = "./content/top10touristplaceinindiainsummer.pdf"
-# filename = "./content/touristplace-image-pdf.pdf"
+output_path = '../content/images'
+filename = "../content/test-pdf.pdf"
+filename = "../content/top10touristplaceinindiainsummer.pdf"
+# filename = "../content/touristplace-image-pdf.pdf"
 
 retriever = None
 def process_pdf(filename, output_path = './content/images'):
-    pdex_obj = ed.PDFExtractor(filename, output_path, max_resized_width=100, bool_resize=True)
+    pdex_obj = ed.PDFExtractor(filename, output_path, max_resized_width=250, bool_resize=True)
     pdex_obj.partition_pdf()
     pdex_obj.extract_elements()
 
@@ -27,16 +27,34 @@ def process_pdf(filename, output_path = './content/images'):
 
     # step 3
     vs_obj = cv.VectorStore()
+
     vs_obj.create_docs_caller(
         pdex_obj.text_elements, text_summaries, 
-        pdex_obj.table_elements, table_summaries, 
+        pdex_obj.table_elements, table_summaries)
+    vs_obj.upsert_docs_to_zilliz_coll()
+
+    vs_obj.create_image_docs_caller(
         pdex_obj.image_elements, image_summaries)
-    vs_obj.create_milvus_vs()
-    
+    vs_obj.upsert_image_docs_to_zilliz_coll()
+
     global retriever
     retriever = vs_obj.retriever
 
+# process_pdf(filename, output_path = './content/images')
+
 # step 4
+def cloud_retriever(queries=['what is title of the document?']):
+    results = cv.zo.search_collection(input_queries=queries)
+    res = []
+    for node_list in results:
+        print(type(node_list))
+        for nd in node_list:
+            node = nd["entity"]
+            # print(node["type"], node["summary"], node["original_content"])
+            res.append(node)
+    return res
+
+# step 5
 prompt_template = """
     You are an assistant tasked with summarizing tables and text.
     Give a concise summary of the table or text.
@@ -49,33 +67,32 @@ prompt_template = """
 """
 
 from llms_init import my_llm
-def chat_with_llm(question):
-    global retriever
-    nodes = retriever.retrieve(question)
-    relevant_docs = [n.node for n in nodes]
+
+def cloud_chat_with_llm(question):
+    relevant_docs = cloud_retriever([question])
 
     context = ""
     relevant_images = []
-    for d in relevant_docs:
-        if d.metadata['type'] == 'text':
-            context += '[text]' + d.metadata['original_content']
-        elif d.metadata['type'] == 'table':
-            context += '[table]' + d.metadata['original_content']
-        elif d.metadata['type'] == 'image':
+    for node in relevant_docs:
+        type, summary, orig_content = node["type"], node["summary"], node["original_content"]
+        if type == 'text':
+            context += '[text]' + orig_content
+        elif type == 'table':
+            context += '[table]' + orig_content
+        elif type == 'image':
             # print(d.metadata.keys())
-            context += '[image]' + str(d.page_content)
-            relevant_images.append(d.metadata['original_content'])
+            context += '[image]' + summary
+            relevant_images.append(orig_content)
     # result = qa_chain.run({'context': context, 'question': question})
     result = my_llm.complete(prompt_template.format(context=context, question=question))
     return result, relevant_images
 
 
-# # step 5
 # while True:
 #     question = input("Enter your question: ")
 #     if question == "quit":
 #         break
-#     result, relevant_images = answer(question)
+#     result, relevant_images = cloud_chat_with_llm(question)
 #     print(result)
 #     print(relevant_images)
 #     image_data = base64.b64decode(relevant_images[0])
